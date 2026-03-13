@@ -2,6 +2,7 @@ import qrcode
 import cv2
 from pyzbar.pyzbar import decode
 import os
+import numpy as np
 
 folder = "generated_qr"
 if not os.path.exists(folder):
@@ -100,9 +101,16 @@ def scan_qr():
 
 
 def live_scan():
+    import webbrowser
     print("\nOpening webcam... Press 'q' to quit or close the window")
 
     cap = cv2.VideoCapture(0)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+    cv2.namedWindow("QR Scanner", cv2.WINDOW_NORMAL)
+    cv2.setWindowProperty("QR Scanner", cv2.WND_PROP_TOPMOST, 1)
+
+    opened_links = set()  # prevents opening the same link repeatedly
     while True:
         ret, frame = cap.read() #Capture webcam feed
         if not ret:
@@ -114,18 +122,40 @@ def live_scan():
             data = obj.data.decode("utf-8") #Decode QR code data from webcam feed
             print("Detected:", data)
 
+            if data.startswith("http") and data not in opened_links: #Open URLs in browser and keep track of opened links to avoid duplicates
+                print("Opening link in browser...")
+                webbrowser.open(data)
+                opened_links.add(data)
+
             points = obj.polygon
-            if len(points) > 4:
-                hull = cv2.convexHull(points)   #Convex hull for QR code boundary
-                points = hull
+            pts = [(p.x, p.y) for p in points]
+
+            if len(pts) > 4:
+                hull = cv2.convexHull(np.array(pts, dtype=np.float32))
+                pts = [(int(x[0][0]), int(x[0][1])) for x in hull]
+
+            for i in range(len(pts)):
+                cv2.line(frame, pts[i], pts[(i + 1) % len(pts)], (0, 255, 0), 2)
+
+            corner_length = 20
+            for (x, y) in pts:
+                cv2.line(frame, (x, y), (x + corner_length, y), (0, 255, 255), 3)
+                cv2.line(frame, (x, y), (x, y + corner_length), (0, 255, 255), 3)
 
             n = len(points)
             for j in range(n):
                 cv2.line(frame, points[j], points[(j + 1) % n], (0, 255, 0), 3)
 
-            cv2.putText(frame, data, (50, 50),
-                        cv2.FONT_HERSHEY_SIMPLEX,   
-                        1, (0, 255, 0), 2)  #Display decoded data on webcam feed
+            x, y = pts[0]
+            cv2.putText(
+                frame,
+                data,
+                (x, y - 10),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.6,
+                (0, 255, 0),
+                2
+            )   #Display decoded data above the QR code in the webcam feed
 
         cv2.imshow("QR Scanner", frame) #Display webcam feed with detected QR codes highlighted
 
