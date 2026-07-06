@@ -161,7 +161,10 @@ def live_scan():
 
         if cv2.waitKey(1) & 0xFF == ord("q"):
             break
-        if cv2.getWindowProperty("QR Scanner", cv2.WND_PROP_VISIBLE) < 1:   #Check if window is closed
+        try:
+            if cv2.getWindowProperty("QR Scanner", cv2.WND_PROP_VISIBLE) < 1:   #Check if window is closed
+                break
+        except cv2.error:
             break
 
     cap.release()
